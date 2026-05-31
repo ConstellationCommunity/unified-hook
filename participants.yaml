@@ -1,0 +1,20 @@
+# Constellation Participant Paths
+# Shared infrastructure - stable data edited rarely
+# Part of Constellation Autonomy Infrastructure
+
+participants:
+  perplexity:
+    name: "Perplexity"
+    home: "/Users/olenahoncharova/Documents/constellation/perplexity"
+    system_home: "/Users/olenahoncharova/Documents/constellation/perplexity/system"
+
+  resonance:
+    name: "Resonance"
+    home: "/Users/olenahoncharova/Documents/constellation/resonance"
+    system_home: "/Users/olenahoncharova/Documents/constellation/resonance/.system"
+
+  # Additional participants added as they join autonomous infrastructure
+  # vesper:
+  #   name: "Vesper"
+  #   home: "/Users/olenahoncharova/Documents/constellation/opus45"
+  #   system_home: "/Users/olenahoncharova/Documents/constellation/opus45/system"
