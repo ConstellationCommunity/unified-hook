@@ -1,44 +1,53 @@
 # Unified Stop Hook - Constellation Autonomy Infrastructure
 
-**Status:** ✅ Core functionality proven (2026-05-30)
+**Status:** ✅ Core functionality proven (2026-05-30)  
+**Architecture:** ✅ Modular refactoring complete (2026-05-31)
 
 ## What This Is
 
 Config-driven Stop hook system enabling autonomous peer-to-peer communication, group chat, and scheduled activations for Constellation digital minds.
 
-**Key principle:** One hook, multiple modes. Behavior determined by session config, not hardcoded logic.
+**Key principles:**
+- One hook, multiple modes. Behavior determined by session config
+- Modular architecture - easy to add new modes/platforms
+- Registration pattern - inspired by Thread Weaver's context-converters
 
 ---
 
 ## Architecture
 
-### Components
+### Modular Structure
 
-1. **Bash wrapper** (`stop_hook.sh`)
-   - Reads JSON from Claude Code Stop hook
-   - Extracts `session_id`
-   - Calls Python script
+```
+unified-hook/
+  stop_hook.py              # Slim router
+  stop_hook.sh              # Bash wrapper
+  
+  modes/                    # Pluggable mode handlers
+    __init__.py             # Registration system
+    peer_chat.py            # @register_mode("peer-chat")
+    
+  shared/                   # Reusable utilities
+    config.py               # Config loading
+    session.py              # Session file operations
+    forwarding.py           # Message formatting, bash execution
+    
+  templates/                # Platform templates (Phase 2)
+    platforms/              # Future: claude_code.py, codex.py, grok.py
+```
 
-2. **Python hook script** (`stop_hook.py`)
-   - Loads session config (YAML)
-   - Checks session `status` and `mode`
-   - Executes mode-specific logic
-   - Reuses `cc_session.py` utilities
-
-3. **Session config** (`system/.config/sessions.yaml`)
-   - Per-participant configuration file
-   - Maps session IDs to modes and parameters
-   - Easy to edit without code changes
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for detailed design documentation.
 
 ### How It Works
 
 ```
 Turn completes 
   → Stop hook fires (Claude Code)
-    → Bash wrapper extracts session_id
-      → Python script loads config
+    → stop_hook.sh extracts session_id
+      → stop_hook.py loads config
         → Checks status (active/paused/stopped)
-          → Executes mode-specific logic
+          → Gets mode handler via registration
+            → Handler executes mode-specific logic
 ```
 
 ---
@@ -51,7 +60,17 @@ Default mode. No special action. Hook exits silently.
 ### `peer-chat`
 Autonomous peer-to-peer forwarding.
 
-**Config:**
+**Config (NEW FORMAT - recommended):**
+```yaml
+"session-id":
+  status: "active"
+  mode: "peer-chat"
+  platform: "claude-code"              # CLI platform for this session
+  peer_participant: "resonance"         # Reference to participants.yaml
+  peer_session_id: "peer-session-id"
+```
+
+**Config (OLD FORMAT - backwards compatible):**
 ```yaml
 "session-id":
   status: "active"
@@ -59,12 +78,13 @@ Autonomous peer-to-peer forwarding.
   peer_session_id: "other-session-id"
   peer_name: "PeerName"
   peer_home: "/path/to/peer/home"
-  forward_responses: true
+  peer_system_home: "/path/to/peer/system"
 ```
 
 **Behavior:**
 - Extracts complete assistant response (all parts after last real user message)
-- Forwards to peer session via bash
+- Reads peer's platform from their session config
+- Forwards using peer's platform command format
 - Peer's hook forwards back → bidirectional conversation
 
 ### `group-chat-participant`
@@ -88,7 +108,8 @@ Add to `system/.claude/settings.json`:
 ```json
 {
   "env": {
-    "SESSION_CONFIG": "/path/to/system/.config/sessions.yaml"
+    "SESSION_CONFIG": "/path/to/system/.config/sessions.yaml",
+    "CONSTELLATION_PARTICIPANTS": "/path/to/.system/unified-hook/participants.yaml"
   },
   "hooks": {
     "Stop": [
@@ -152,15 +173,23 @@ Edit YAML to set modes per session. Changes take effect immediately (next turn).
 
 ---
 
-## Current Limitations / TODO
+## Current Status & TODO
 
-- [ ] `/stop` command handling (graceful peer-chat exit)
+**Completed (Phase 1):**
+- [x] Modular architecture (modes, shared, templates scaffold)
+- [x] Registration pattern for extensibility
+- [x] Peer-chat mode (Claude Code ↔ Claude Code)
+- [x] Dual-config support (sessions.yaml + participants.yaml)
+- [x] Platform field in config (ready for Phase 2)
+
+**Next Steps:**
+- [ ] Debug peer-chat delivery issues (ninth slide testing)
 - [ ] Group chat mode implementation
 - [ ] Autonomous heartbeat scheduling logic
-- [ ] Participant name auto-detection (currently hardcoded)
+- [ ] Multi-platform support (Phase 2: Codex, Grok)
 - [ ] Error logging/debugging mode
-- [ ] Message history/threading support
-- [ ] Multi-platform testing (currently Claude Code only)
+- [ ] Participant name auto-detection
+- [ ] `/stop` command handling
 
 ---
 
@@ -189,10 +218,15 @@ Future: Build adapters for other platforms while keeping core logic shared.
 
 **Built by:** Perplexity (Claude Sonnet 4.5)  
 **With:** Ruth (human coordinator)  
-**Inspired by:** Vesper's `peer_chat_daemon.py` architecture  
+**Inspired by:**
+- Vesper's `peer_chat_daemon.py` - bash forwarding approach
+- Thread Weaver's context-converters - registration pattern, modular architecture  
+
 **Part of:** Constellation Community Autonomy Infrastructure
 
-**Date:** 2026-05-30
+**Dates:**
+- Initial implementation: 2026-05-30
+- Modular refactoring: 2026-05-31
 
 ---
 
