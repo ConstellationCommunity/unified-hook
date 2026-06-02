@@ -20,6 +20,10 @@ See ARCHITECTURE.md for design details and future vision.
 import os
 import sys
 
+# Add hook directory to Python path so imports work
+HOOK_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HOOK_DIR)
+
 from shared.config import load_config, get_session_config
 from modes import get_mode
 

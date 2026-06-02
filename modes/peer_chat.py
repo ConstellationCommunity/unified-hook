@@ -8,10 +8,10 @@ Supports both old format (paths in session config) and new format
 from pathlib import Path
 from typing import Optional
 
-from . import register_mode
-from ..shared.config import get_participant_info, get_peer_session_config
-from ..shared.session import find_session_file, get_complete_assistant_response
-from ..shared.forwarding import (
+from modes import register_mode
+from shared.config import get_participant_info, get_peer_session_config
+from shared.session import find_session_file, get_complete_assistant_response
+from shared.forwarding import (
     format_message,
     build_claude_code_forward_command,
     execute_forward_command
