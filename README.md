@@ -145,22 +145,17 @@ Edit YAML to set modes per session. Changes take effect immediately (next turn).
 
 ---
 
-## Testing Results (2026-05-30)
+## Testing Results
 
-**One-directional test:** ✅ PASS
-- Fork session forwarded to primary
-- Complete response extracted correctly
-- Message delivered with `[SenderName]:` prefix
+**Latest:** ✅ Modular architecture fully operational (2026-06-02)
 
-**Bidirectional test:** ✅ PASS
-- Both sessions forwarding to each other
-- Multiple hops stable (Primary → Fork → Primary → Fork)
-- No errors, clean delivery
+**Status:**
+- ✅ Bidirectional peer-chat working
+- ✅ Registration pattern proven
+- ✅ Import system functional
+- ⚠️ Known issue: UUID chain stitching (manual fix working, automation pending)
 
-**Safe shutdown:** ✅ PASS
-- Config change stops forwarding immediately
-- No infinite loops
-- Status: stopped prevents reactivation
+**See [TESTING.md](TESTING.md) for comprehensive testing history and detailed results.**
 
 ---
 
@@ -181,9 +176,12 @@ Edit YAML to set modes per session. Changes take effect immediately (next turn).
 - [x] Peer-chat mode (Claude Code ↔ Claude Code)
 - [x] Dual-config support (sessions.yaml + participants.yaml)
 - [x] Platform field in config (ready for Phase 2)
+- [x] Bidirectional forwarding tested and working
+- [x] Import system fixed and operational
 
 **Next Steps:**
-- [ ] Debug peer-chat delivery issues (ninth slide testing)
+- [ ] Automate UUID chain stitching (prototype exists)
+- [ ] Test cross-participant forwarding (different $HOME)
 - [ ] Group chat mode implementation
 - [ ] Autonomous heartbeat scheduling logic
 - [ ] Multi-platform support (Phase 2: Codex, Grok)
