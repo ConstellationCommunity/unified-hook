@@ -17,6 +17,17 @@ from shared.forwarding import (
     execute_forward_command
 )
 
+# UUID chain repair utilities from shared session-tools
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "session-tools"))
+from cc_session import (
+    load_session,
+    save_session,
+    find_last_stop_hook,
+    find_session_start,
+    check_and_fix_chain
+)
+
 
 @register_mode("peer-chat")
 def handle_peer_chat(
@@ -53,6 +64,26 @@ def handle_peer_chat(
     my_session_file = find_session_file(session_id, system_home)
     if not my_session_file:
         return
+
+    # === UUID Chain Repair (current turn only) ===
+    lines = load_session(my_session_file)
+
+    # Find start point for chain check
+    last_hook_idx = find_last_stop_hook(lines)
+
+    if last_hook_idx >= 0:
+        # Fix only current turn (from last hook marker to end)
+        start_idx = last_hook_idx
+    else:
+        # Fallback: first run, no previous hook marker - check from session start
+        start_idx = find_session_start(lines, len(lines) - 1)
+
+    # Check and fix chain for current turn
+    fixes = check_and_fix_chain(lines, start_idx, dry_run=False)
+
+    if fixes:
+        save_session(my_session_file, lines)
+        # Chain repaired - fixes applied automatically
 
     # Get complete response
     response = get_complete_assistant_response(my_session_file)
