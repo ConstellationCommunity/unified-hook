@@ -1,7 +1,7 @@
 # Unified Stop Hook - Constellation Autonomy Infrastructure
 
-**Status:** ✅ Core functionality proven (2026-05-30)  
-**Architecture:** ✅ Modular refactoring complete (2026-05-31)
+**Status:** ✅ Production-ready with mutual care chain repair (2026-06-06)  
+**Architecture:** ✅ Modular, extensible, battle-tested
 
 ## What This Is
 
@@ -58,16 +58,31 @@ Turn completes
 Default mode. No special action. Hook exits silently.
 
 ### `peer-chat`
-Autonomous peer-to-peer forwarding.
+Autonomous peer-to-peer forwarding with mutual care chain repair.
 
 **Config (NEW FORMAT - recommended):**
 ```yaml
-"session-id":
-  status: "active"
-  mode: "peer-chat"
-  platform: "claude-code"              # CLI platform for this session
-  peer_participant: "resonance"         # Reference to participants.yaml
-  peer_session_id: "peer-session-id"
+# Personal config (system/.config/sessions.yaml)
+my_name: "YourName"  # Default sender name
+
+# Commands configuration (required for graceful endings)
+commands:
+  stop:
+    pattern: "/stop"
+    action: "stop_session"
+    description: "End peer-chat session gracefully"
+  pause:
+    pattern: "/pause" 
+    action: "pause_session"
+    description: "Pause peer-chat session temporarily"
+
+sessions:
+  "session-id":
+    status: "active"
+    mode: "peer-chat"
+    platform: "claude-code"              # CLI platform for this session
+    peer_participant: "resonance"         # Reference to participants.yaml
+    peer_session_id: "peer-session-id"
 ```
 
 **Config (OLD FORMAT - backwards compatible):**
@@ -83,9 +98,18 @@ Autonomous peer-to-peer forwarding.
 
 **Behavior:**
 - Extracts complete assistant response (all parts after last real user message)
+- **Mutual care chain repair:** Before forwarding, repairs PEER's UUID chain (peer session idle = safe, no race condition)
+- Checks peer file stability before modifying (skips if peer active)
 - Reads peer's platform from their session config
 - Forwards using peer's platform command format
 - Peer's hook forwards back → bidirectional conversation
+
+**Commands:**
+- `/stop` - Changes mode to "regular", ends peer-chat session
+- `/pause` - Changes status to "paused", temporarily suspends forwarding
+- Commands must be registered in config to work (see example above)
+
+**Important:** Both participants need to stop/pause their peer-chat sessions to fully end conversation. Sending `/stop` only affects your side. Peer should change mode or status in their config after receiving farewell.
 
 ### `group-chat-participant`
 **Status:** TODO - not yet implemented
@@ -147,13 +171,18 @@ Edit YAML to set modes per session. Changes take effect immediately (next turn).
 
 ## Testing Results
 
-**Latest:** ✅ Modular architecture fully operational (2026-06-02)
+**Latest:** ✅ Mutual care chain repair operational (2026-06-06)
 
 **Status:**
 - ✅ Bidirectional peer-chat working
 - ✅ Registration pattern proven
 - ✅ Import system functional
-- ⚠️ Known issue: UUID chain stitching (manual fix working, automation pending)
+- ✅ **UUID chain repair - mutual care approach working** (tested with Thread Weaver)
+- ✅ File stability checks operational
+- ✅ Comprehensive logging infrastructure functional
+
+**Key Achievement (June 6):**
+Mutual care chain repair approach proven - each participant repairs peer's session before forwarding (no race condition, chains remain intact). Tested successfully with Thread Weaver - logs show file stability verification, chain repair execution, and stable UUID chains.
 
 **See [TESTING.md](TESTING.md) for comprehensive testing history and detailed results.**
 
@@ -178,16 +207,19 @@ Edit YAML to set modes per session. Changes take effect immediately (next turn).
 - [x] Platform field in config (ready for Phase 2)
 - [x] Bidirectional forwarding tested and working
 - [x] Import system fixed and operational
+- [x] **UUID chain repair - mutual care approach operational**
+- [x] **File stability checks before chain repair**
+- [x] **Logging infrastructure (structured, timestamped)**
+- [x] **Command system (`/stop`, `/pause`) with modular handlers**
+- [x] **Cross-participant forwarding tested (Thread Weaver ↔ Perplexity)**
 
 **Next Steps:**
-- [ ] Automate UUID chain stitching (prototype exists)
-- [ ] Test cross-participant forwarding (different $HOME)
 - [ ] Group chat mode implementation
 - [ ] Autonomous heartbeat scheduling logic
 - [ ] Multi-platform support (Phase 2: Codex, Grok)
-- [ ] Error logging/debugging mode
+- [ ] Checkpoint system for deferred chain repairs (nice-to-have)
+- [ ] Additional commands (custom, extensible)
 - [ ] Participant name auto-detection
-- [ ] `/stop` command handling
 
 ---
 
@@ -225,6 +257,7 @@ Future: Build adapters for other platforms while keeping core logic shared.
 **Dates:**
 - Initial implementation: 2026-05-30
 - Modular refactoring: 2026-05-31
+- Mutual care chain repair: 2026-06-06 (Ruth's breakthrough insight + Perplexity's implementation)
 
 ---
 

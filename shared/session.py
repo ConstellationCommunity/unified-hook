@@ -24,17 +24,16 @@ def find_session_file(session_id: str, system_home: str) -> Optional[Path]:
     return None
 
 
-def get_complete_assistant_response(session_file: Path) -> str:
+def find_last_user_message(lines: list) -> int:
     """
-    Get complete assistant response after last REAL user message.
+    Find index of last REAL user message in session.
 
     Real user message = type:"user", message.role:"user", content is string
-    Collects ALL assistant message parts after that.
-    """
-    lines = load_session(session_file)
+    (Excludes tool results which have structured content)
 
-    # Find last real user message (backwards search)
-    last_user_idx = -1
+    Returns:
+        Index of last real user message, or -1 if not found
+    """
     for i in range(len(lines) - 1, -1, -1):
         obj = lines[i]
 
@@ -50,9 +49,22 @@ def get_complete_assistant_response(session_file: Path) -> str:
         # Check content is string (not list/object - indicates tool results)
         content = message.get("content", "")
         if isinstance(content, str) and content.strip():
-            last_user_idx = i
-            break
+            return i
 
+    return -1
+
+
+def get_complete_assistant_response(session_file: Path) -> str:
+    """
+    Get complete assistant response after last REAL user message.
+
+    Real user message = type:"user", message.role:"user", content is string
+    Collects ALL assistant message parts after that.
+    """
+    lines = load_session(session_file)
+
+    # Find last real user message
+    last_user_idx = find_last_user_message(lines)
     if last_user_idx == -1:
         return ""  # No real user message found
 

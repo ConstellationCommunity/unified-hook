@@ -4,6 +4,12 @@ Peer-chat mode handler.
 Forwards assistant responses to configured peer via bash mechanism.
 Supports both old format (paths in session config) and new format
 (participant reference + shared participants.yaml).
+
+UUID Chain Repair - Mutual Care Approach:
+Before forwarding message to peer, repairs THEIR session's UUID chain
+(from last user message to end). This avoids race conditions since
+peer's session is idle while we repair it. Each participant maintains
+the other's chain integrity - revolutionary love through code.
 """
 import os
 import time
@@ -12,7 +18,7 @@ from typing import Optional
 
 from modes import register_mode
 from shared.config import get_participant_info, get_peer_session_config
-from shared.session import find_session_file, get_complete_assistant_response
+from shared.session import find_session_file, get_complete_assistant_response, find_last_user_message
 from shared.forwarding import (
     format_message,
     build_claude_code_forward_command,
@@ -24,7 +30,7 @@ from shared.commands import (
     get_command_config
 )
 from shared.logging import create_logger
-from shared.file_utils import wait_for_stable_file, get_file_info
+from shared.file_utils import wait_for_stable_file
 from commands import get_command_handler
 
 # UUID chain repair utilities from shared session-tools
@@ -33,8 +39,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "session-tools"))
 from cc_session import (
     load_session,
     save_session,
-    find_last_stop_hook,
-    find_session_start,
     check_and_fix_chain
 )
 
@@ -86,63 +90,6 @@ def handle_peer_chat(
         return
 
     logger.debug("Session file located", path=str(my_session_file))
-
-    # === UUID Chain Repair (delayed for safety) ===
-    logger.info("Starting chain repair with delay")
-    repair_start = time.time()
-
-    # STEP 1: Initial delay - let Claude Code finish primary writes
-    initial_delay = 1.5  # seconds
-    logger.debug(f"Waiting {initial_delay}s for Claude Code to finish writes")
-    time.sleep(initial_delay)
-
-    # STEP 2: Wait for file stabilization
-    logger.debug("Checking file stability", timeout=3.0)
-    file_info_before = get_file_info(my_session_file)
-    logger.debug("File info before stability check", **file_info_before)
-
-    if not wait_for_stable_file(my_session_file, timeout=3.0):
-        logger.warning("File still changing after timeout - skipping chain repair for safety")
-        # Continue without chain repair - safer than corrupting file
-    else:
-        logger.info("File stabilized - safe to repair chain")
-
-        # STEP 3: Load FRESH session (might have new records from Claude Code)
-        lines = load_session(my_session_file)
-        logger.debug("Session loaded", line_count=len(lines))
-
-        # STEP 4: Find start point for chain check
-        last_hook_idx = find_last_stop_hook(lines)
-
-        if last_hook_idx >= 0:
-            # Fix only current turn (from last hook marker to end)
-            start_idx = last_hook_idx
-            logger.debug("Found last hook marker", index=last_hook_idx)
-        else:
-            # Fallback: first run, no previous hook marker - check from session start
-            start_idx = find_session_start(lines, len(lines) - 1)
-            logger.debug("No hook marker found, using session start", index=start_idx)
-
-        # STEP 5: Check and fix chain for current turn
-        fixes = check_and_fix_chain(lines, start_idx, dry_run=False)
-
-        if fixes:
-            logger.info(f"Found {len(fixes)} broken links to fix")
-
-            # STEP 6: Final stability check before save
-            if wait_for_stable_file(my_session_file, timeout=1.0):
-                file_info_after = get_file_info(my_session_file)
-                logger.debug("File stable before save", **file_info_after)
-
-                save_session(my_session_file, lines)
-                logger.info("Chain repaired and saved successfully", fix_count=len(fixes))
-            else:
-                logger.warning("File became unstable before save - skipping save for safety")
-        else:
-            logger.info("No broken links found - chain already intact")
-
-    repair_duration = (time.time() - repair_start) * 1000  # ms
-    logger.timing("Chain repair", repair_duration)
 
     # Get complete response
     response = get_complete_assistant_response(my_session_file)
@@ -272,6 +219,50 @@ def handle_peer_chat(
         # Don't forward rest of message - command handled
         logger.info("Command handling complete - exiting")
         return
+
+    # === Repair Peer's UUID Chain (mutual care) ===
+    logger.info("Starting peer chain repair (mutual care approach)")
+    repair_start = time.time()
+
+    # Find peer's session file
+    peer_session_file = find_session_file(peer_session_id, peer_system_home)
+    if peer_session_file:
+        logger.debug("Peer session file located", path=str(peer_session_file))
+
+        # Check file stability before modifying (peer might be active)
+        if not wait_for_stable_file(peer_session_file, timeout=2.0):
+            logger.warning("Peer session file unstable - skipping repair for safety", peer_name=peer_name)
+        else:
+            logger.debug("Peer session file stable - safe to repair", peer_name=peer_name)
+
+            # Load peer's session
+            peer_lines = load_session(peer_session_file)
+            logger.debug("Peer session loaded", line_count=len(peer_lines))
+
+            # Find last user message in peer's session
+            last_user_idx = find_last_user_message(peer_lines)
+
+            if last_user_idx >= 0:
+                logger.debug("Found last user message in peer session", index=last_user_idx)
+
+                # Repair chain FROM last user message TO end (current exchange only)
+                fixes = check_and_fix_chain(peer_lines, last_user_idx, dry_run=False)
+
+                if fixes:
+                    logger.info(f"Found {len(fixes)} broken links in peer session", peer_name=peer_name)
+
+                    # Save repaired peer session (safe - peer is idle)
+                    save_session(peer_session_file, peer_lines)
+                    logger.info("Peer chain repaired and saved", fix_count=len(fixes), peer_name=peer_name)
+                else:
+                    logger.debug("No broken links in peer session - chain intact", peer_name=peer_name)
+            else:
+                logger.debug("No user message found in peer session - skipping repair", peer_name=peer_name)
+    else:
+        logger.warning("Peer session file not found - skipping chain repair", peer_session_id=peer_session_id[:8])
+
+    repair_duration = (time.time() - repair_start) * 1000  # ms
+    logger.timing("Peer chain repair", repair_duration, peer_name=peer_name)
 
     # === Format Message === (no command, forward complete response)
     logger.debug("No command detected - forwarding complete response")
