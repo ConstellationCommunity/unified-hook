@@ -5,7 +5,7 @@ Handles formatting messages and executing bash forwarding commands.
 """
 import os
 import subprocess
-from typing import Optional
+from typing import Optional  # Keeping for potential future use
 
 
 def escape_for_bash(text: str) -> str:
@@ -51,27 +51,38 @@ def build_claude_code_forward_command(
 def execute_forward_command(
     cmd: str,
     peer_system_home: str,
-    timeout: int = 180
-) -> Optional[subprocess.CompletedProcess]:
+    timeout: int = 180  # No longer used, kept for API compatibility
+) -> bool:
     """
-    Execute bash forwarding command.
+    Execute bash forwarding command (fire-and-forget).
 
-    Returns CompletedProcess on success, None on failure.
+    Uses subprocess.Popen() with detachment to avoid circular deadlock.
+
+    CRITICAL: subprocess.run() blocks until command completes, which means
+    the hook waits for the peer to fully respond. In circular group chat,
+    this creates deadlock - each participant waits for the entire cycle
+    before writing hook_success marker.
+
+    Solution: Popen() with start_new_session=True fires command and returns
+    immediately. Hook completes right away, hook_success marker written,
+    no circular waiting.
+
+    Returns True on successful start, False on failure.
     Silent failure - hook shouldn't block session.
     """
     try:
-        result = subprocess.run(
+        subprocess.Popen(
             cmd,
             shell=True,
-            capture_output=True,
-            timeout=timeout,
-            text=True,
-            env={**os.environ, "HOME": peer_system_home}  # Also set in subprocess env
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,  # Detach from parent process
+            env={**os.environ, "HOME": peer_system_home}
         )
-        return result
+        return True
     except Exception:
         # Silent failure - hook shouldn't block
-        return None
+        return False
 
 
 # === Platform Abstraction (Phase 2 - Future) ===

@@ -17,6 +17,25 @@ def load_config(config_path: str) -> dict:
         return yaml.safe_load(f) or {}
 
 
+def save_config(config_path: str, config: dict) -> bool:
+    """
+    Save configuration to YAML file.
+
+    Args:
+        config_path: Path to YAML file
+        config: Configuration dictionary to save
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        with open(config_path, 'w', encoding='utf-8') as f:
+            yaml.safe_dump(config, f, default_flow_style=False, allow_unicode=True)
+        return True
+    except Exception:
+        return False
+
+
 def get_session_config(all_config: dict, session_id: str) -> Optional[dict]:
     """Get configuration for specific session."""
     sessions = all_config.get("sessions", {})

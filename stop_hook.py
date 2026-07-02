@@ -68,7 +68,7 @@ def main():
 
     if handler:
         # Execute mode handler
-        handler(session_config, session_id, system_home, participants_config)
+        handler(all_config, session_config, session_id, system_home, participants_config)
     # else: regular mode - no action (silent)
 
     sys.exit(0)

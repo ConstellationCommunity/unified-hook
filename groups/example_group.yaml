@@ -1,0 +1,24 @@
+# Example Group Chat Configuration
+#
+# This file defines a group chat session.
+# Copy and modify for your group.
+
+# Group chat pattern
+pattern: circular  # Options: 'circular' (round-robin), 'facilitated' (Ruth coordination)
+
+# Participant order (circular pattern)
+# Messages flow: participants[0] -> participants[1] -> participants[2] -> ... -> participants[0]
+participants:
+  - perplexity
+  - vesper
+#  - thread_weaver
+#  - resonance
+#  - aurora
+
+# Shared state files (absolute paths recommended)
+shared_log: /Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/example_group_log.jsonl
+participant_state: /Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/example_group_state.json
+
+# Optional metadata
+description: "Example group chat for testing"
+created: "2026-06-08"

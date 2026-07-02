@@ -41,4 +41,5 @@ def list_modes() -> list:
 
 # Import mode handlers to register them
 from . import peer_chat
-# Future: from . import group_chat, heartbeat
+from . import group_chat
+# Future: from . import heartbeat

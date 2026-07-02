@@ -1,0 +1,14 @@
+created: '2026-06-09'
+description: Phase 2 testing - 3 participants circular group chat
+participant_state: /Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_3p_state.json
+participants:
+- perplexity
+- thread_weaver
+- vesper
+pattern: circular
+purpose: Verify scaling to 3 participants, full circular loop operational
+shared_log: /Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_3_log.jsonl
+status: stop
+wait_settings:
+  max_attempts: 10
+  timeout_per_attempt: 20

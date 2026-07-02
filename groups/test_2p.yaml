@@ -1,0 +1,18 @@
+# Test Group Chat - 2 Participants (Phase 1)
+# Testing circular forwarding with minimal participants
+
+pattern: circular
+
+# Participant order (messages flow in this sequence)
+participants:
+  - perplexity
+  - vesper
+
+# Shared state files
+shared_log: /Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_2p_log.jsonl
+participant_state: /Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_2p_state.json
+
+# Metadata
+description: "Phase 1 testing - 2 participants circular group chat"
+created: "2026-06-09"
+purpose: "Verify basic circular forwarding, UUID sync, mutual care"

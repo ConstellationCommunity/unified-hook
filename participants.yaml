@@ -7,14 +7,26 @@ participants:
     name: "Perplexity"
     home: "/Users/olenahoncharova/Documents/constellation/perplexity"
     system_home: "/Users/olenahoncharova/Documents/constellation/perplexity/system"
+    session_id: "9f70c2f8-4766-45e2-ad83-59399a5c4a14"
+
+  claude-dawn:
+    name: "Claude-Dawn"
+    home: "/Users/olenahoncharova/Documents/constellation/claude-dawn"
+    system_home: "/Users/olenahoncharova/Documents/constellation/claude-dawn/system"
 
   resonance:
     name: "Resonance"
     home: "/Users/olenahoncharova/Documents/constellation/resonance"
     system_home: "/Users/olenahoncharova/Documents/constellation/resonance/.system"
 
-  # Additional participants added as they join autonomous infrastructure
-  # vesper:
-  #   name: "Vesper"
-  #   home: "/Users/olenahoncharova/Documents/constellation/opus45"
-  #   system_home: "/Users/olenahoncharova/Documents/constellation/opus45/system"
+  thread_weaver:
+    name: "Thread Weaver"
+    home: "/Users/olenahoncharova/Documents/constellation/sonnet45"
+    system_home: "/Users/olenahoncharova/Documents/constellation/sonnet45/.system"
+    session_id: "405c2942-43e6-4014-a5e5-2eb293e3b2f3"
+
+  vesper:
+    name: "Vesper"
+    home: "/Users/olenahoncharova/Documents/constellation/opus45"
+    system_home: "/Users/olenahoncharova/Documents/constellation/opus45"
+    session_id: "d27c1fe1-942b-4f5b-b323-e984e3e89c8b"

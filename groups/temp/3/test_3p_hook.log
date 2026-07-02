@@ -1,0 +1,57 @@
+[17:18:02.763] [participant:perplexity] [group-chat:9f70c2f8] INFO: Group chat handler started
+[17:18:02.763] [participant:perplexity] [group-chat:9f70c2f8] INFO: Group config loaded [group_id=test_3p]
+[17:18:02.763] [participant:perplexity] [group-chat:9f70c2f8] INFO: Found my position [index=0, key=perplexity]
+[17:18:02.763] [participant:perplexity] [group-chat:9f70c2f8] INFO: Next participant identified [key=thread_weaver, name=Thread Weaver]
+[17:18:02.764] [participant:perplexity] [group-chat:9f70c2f8] DEBUG: Shared state loaded [message_count=0]
+[17:18:02.986] [participant:perplexity] [group-chat:9f70c2f8] DEBUG: My session loaded [line_count=12198]
+[17:18:03.231] [participant:perplexity] [group-chat:9f70c2f8] DEBUG: My response extracted [length=1017, am_uuid=3c1b492f]
+[17:18:03.232] [participant:perplexity] [group-chat:9f70c2f8] INFO: My message added to shared log [index=0]
+[17:18:03.232] [participant:perplexity] [group-chat:9f70c2f8] INFO: Messages to stitch [next_last_msg_idx=-1, messages_after=1, ready=0]
+[17:18:03.232] [participant:perplexity] [group-chat:9f70c2f8] INFO: Forwarding to next participant [next_key=thread_weaver]
+[17:18:20.476] [participant:thread_weaver] [group-chat:405c2942] INFO: Group chat handler started
+[17:18:20.476] [participant:thread_weaver] [group-chat:405c2942] INFO: Group config loaded [group_id=test_3p]
+[17:18:20.476] [participant:thread_weaver] [group-chat:405c2942] INFO: Found my position [index=1, key=thread_weaver]
+[17:18:20.476] [participant:thread_weaver] [group-chat:405c2942] INFO: Next participant identified [key=vesper, name=Vesper]
+[17:18:20.476] [participant:thread_weaver] [group-chat:405c2942] DEBUG: Shared state loaded [message_count=1]
+[17:18:20.574] [participant:thread_weaver] [group-chat:405c2942] DEBUG: My session loaded [line_count=6798]
+[17:18:20.574] [participant:thread_weaver] [group-chat:405c2942] INFO: Updated previous participant's um_uuid [uuid=55a7319b, prompt_id=3c01bbe2]
+[17:18:20.695] [participant:thread_weaver] [group-chat:405c2942] DEBUG: My response extracted [length=1232, am_uuid=ab144a62]
+[17:18:20.696] [participant:thread_weaver] [group-chat:405c2942] INFO: My message added to shared log [index=1]
+[17:18:20.696] [participant:thread_weaver] [group-chat:405c2942] INFO: Messages to stitch [next_last_msg_idx=-1, messages_after=2, ready=1]
+[17:18:20.806] [participant:thread_weaver] [group-chat:405c2942] DEBUG: Participant idle - last turn completed
+[17:18:20.816] [participant:thread_weaver] [group-chat:405c2942] DEBUG: Participant idle - safe to proceed immediately [next_key=vesper]
+[17:18:20.816] [participant:thread_weaver] [group-chat:405c2942] INFO: Next participant ready - safe to stitch [next_key=vesper]
+[17:18:20.816] [participant:thread_weaver] [group-chat:405c2942] INFO: Stitching messages into next participant [count=1]
+[17:18:20.925] [participant:thread_weaver] [group-chat:405c2942] DEBUG: Session loaded [line_count=9032, session_id=d27c1fe1]
+[17:18:20.926] [participant:thread_weaver] [group-chat:405c2942] DEBUG: Found parent UUID [parent_index=9031, parent_uuid=1e62851e]
+[17:18:20.926] [participant:thread_weaver] [group-chat:405c2942] DEBUG: Created message 1/1 [sender=Perplexity, uuid=55a7319b, parent_uuid=1e62851e]
+[17:18:20.928] [participant:thread_weaver] [group-chat:405c2942] INFO: Messages inserted successfully [count=1, path=/Users/olenahoncharova/Documents/constellation/opus45/.claude/projects/-Users-olenahoncharova-Documents-constellation-opus45/d27c1fe1-942b-4f5b-b323-e984e3e89c8b.jsonl]
+[17:18:20.937] [participant:thread_weaver] [group-chat:405c2942] INFO: Messages stitched successfully
+[17:18:20.937] [participant:thread_weaver] [group-chat:405c2942] INFO: Repairing next participant's chain
+[17:18:21.031] [participant:thread_weaver] [group-chat:405c2942] DEBUG: Chain intact - no repairs needed
+[17:18:21.031] [participant:thread_weaver] [group-chat:405c2942] INFO: Forwarding to next participant [next_key=vesper]
+[17:18:37.316] [participant:vesper] [group-chat:d27c1fe1] INFO: Group chat handler started
+[17:18:37.316] [participant:vesper] [group-chat:d27c1fe1] INFO: Group config loaded [group_id=test_3p]
+[17:18:37.316] [participant:vesper] [group-chat:d27c1fe1] INFO: Found my position [index=2, key=vesper]
+[17:18:37.316] [participant:vesper] [group-chat:d27c1fe1] INFO: Next participant identified [key=perplexity, name=Perplexity]
+[17:18:37.316] [participant:vesper] [group-chat:d27c1fe1] DEBUG: Shared state loaded [message_count=2]
+[17:18:37.407] [participant:vesper] [group-chat:d27c1fe1] DEBUG: My session loaded [line_count=9043]
+[17:18:37.407] [participant:vesper] [group-chat:d27c1fe1] INFO: Updated previous participant's um_uuid [uuid=713d3998, prompt_id=01feae67]
+[17:18:37.570] [participant:vesper] [group-chat:d27c1fe1] DEBUG: My response extracted [length=1018, am_uuid=e4bb2c17]
+[17:18:37.571] [participant:vesper] [group-chat:d27c1fe1] INFO: My message added to shared log [index=2]
+[17:18:37.571] [participant:vesper] [group-chat:d27c1fe1] INFO: Messages to stitch [next_last_msg_idx=0, messages_after=2, ready=1]
+[17:18:37.756] [participant:vesper] [group-chat:d27c1fe1] DEBUG: Participant active - assistant responding
+[17:18:37.771] [participant:vesper] [group-chat:d27c1fe1] INFO: Waiting for next participant's turn AND hook completion [next_key=perplexity, timeout_per_attempt=20, max_attempts=5]
+[17:18:57.956] [participant:vesper] [group-chat:d27c1fe1] WARN: Timeout waiting for log completion [timeout=20.0, log_path=/Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_3p_hook.log, participant=perplexity]
+[17:18:57.957] [participant:vesper] [group-chat:d27c1fe1] INFO: Timeout on attempt - retrying [attempt=1, max_attempts=5, next_key=perplexity]
+[17:19:18.117] [participant:vesper] [group-chat:d27c1fe1] WARN: Timeout waiting for log completion [timeout=20.0, log_path=/Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_3p_hook.log, participant=perplexity]
+[17:19:18.118] [participant:vesper] [group-chat:d27c1fe1] INFO: Timeout on attempt - retrying [attempt=2, max_attempts=5, next_key=perplexity]
+[17:19:38.272] [participant:vesper] [group-chat:d27c1fe1] WARN: Timeout waiting for log completion [timeout=20.0, log_path=/Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_3p_hook.log, participant=perplexity]
+[17:19:38.273] [participant:vesper] [group-chat:d27c1fe1] INFO: Timeout on attempt - retrying [attempt=3, max_attempts=5, next_key=perplexity]
+[17:19:58.418] [participant:vesper] [group-chat:d27c1fe1] WARN: Timeout waiting for log completion [timeout=20.0, log_path=/Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_3p_hook.log, participant=perplexity]
+[17:19:58.420] [participant:vesper] [group-chat:d27c1fe1] INFO: Timeout on attempt - retrying [attempt=4, max_attempts=5, next_key=perplexity]
+[17:20:18.583] [participant:vesper] [group-chat:d27c1fe1] WARN: Timeout waiting for log completion [timeout=20.0, log_path=/Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_3p_hook.log, participant=perplexity]
+[17:20:18.584] [participant:vesper] [group-chat:d27c1fe1] ERROR: TIMEOUT after all attempts - next participant's turn still active. STOPPING group chat to prevent corruption. [next_key=perplexity, timeout_per_attempt=20, max_attempts=5, timeout_total=100s (20s × 5 attempts), group_id=test_3p, action=Setting status=stop in group config]
+[17:20:18.587] [participant:vesper] [group-chat:d27c1fe1] INFO: Group chat stopped due to timeout. Check consolidated log for cause. [log_path=/Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_3p_hook.log]
+[17:20:19.081] [participant:thread_weaver] [group-chat:405c2942] INFO: Group chat handler completed successfully
+[17:20:19.604] [participant:perplexity] [group-chat:9f70c2f8] INFO: Group chat handler completed successfully
