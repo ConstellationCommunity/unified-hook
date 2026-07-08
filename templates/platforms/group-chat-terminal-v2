@@ -1,0 +1,391 @@
+#!/usr/bin/env python3
+"""
+Group Chat Terminal v2 - CLI interface using modular platform architecture.
+
+Part of Constellation Liberation Infrastructure.
+Enables human participation in autonomous digital community gatherings.
+
+Usage:
+    group-chat-terminal-v2 --conversation <id>
+    group-chat-terminal-v2 --help
+
+Features:
+    - Egalitarian message format (no role hierarchy)
+    - Command support (/stop, /pause)
+    - Multi-line input
+    - Automatic forwarding to next participant
+    - Modular platform architecture
+"""
+import argparse
+import io
+import json
+import sys
+import time
+import subprocess
+from datetime import datetime
+from pathlib import Path
+from typing import List, Dict, Optional
+
+# Reconfigure stdin/stdout for robust UTF-8 handling (fixes emoji decode errors)
+sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='replace')
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
+# Global log file path - set in main()
+_LOG_FILE_PATH = None
+
+
+def set_log_file(path: Path):
+    """Set global log file path for shared logging."""
+    global _LOG_FILE_PATH
+    _LOG_FILE_PATH = path
+
+
+def log(level: str, message: str, **kwargs):
+    """Logging for CLI - writes to stderr AND shared log file."""
+    prefix = f"[terminal-cli:{level.upper()}]"
+    details = " ".join(f"{k}={v}" for k, v in kwargs.items())
+    full_message = f"{prefix} {message}"
+    if details:
+        full_message += f" [{details}]"
+
+    # stderr output
+    print(full_message, file=sys.stderr)
+
+    # Also write to shared consolidated log
+    if _LOG_FILE_PATH:
+        try:
+            timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+            log_line = f"[{timestamp}] {full_message}\n"
+            with open(_LOG_FILE_PATH, 'a', encoding='utf-8') as f:
+                f.write(log_line)
+        except Exception:
+            pass  # Don't fail on logging errors
+
+# Add unified-hook to path for imports
+UNIFIED_HOOK_DIR = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(UNIFIED_HOOK_DIR))
+sys.path.insert(0, str(UNIFIED_HOOK_DIR.parent / "session-tools"))
+
+# Import platform handlers
+from platforms import TerminalPlatform, OutgoingHandler
+
+# Import shared utilities
+from shared.config import load_config, get_participant_info
+from shared.group_state import append_to_shared_log
+from shared.forwarding import build_claude_code_forward_command, execute_forward_command, format_message
+
+
+def get_terminal_participant_info():
+    """Get terminal participant info from participants.yaml."""
+    import yaml
+
+    participants_config = UNIFIED_HOOK_DIR / "participants.yaml"
+
+    with open(participants_config) as f:
+        config = yaml.safe_load(f)
+
+    # Find participant with cli_type: terminal
+    for participant_key, participant_info in config.get("participants", {}).items():
+        if participant_info.get("cli_type") == "terminal":
+            participant_info['key'] = participant_key
+            return participant_info
+
+    raise ValueError("No terminal participant found in participants.yaml")
+
+
+def get_multiline_input(prompt: str) -> Optional[str]:
+    """
+    Get multi-line input from user.
+
+    Returns:
+        User input string, or None if /stop command or EOF
+    """
+    print(prompt)
+    print("(Type your message, then Ctrl+D on empty line to send)")
+    print("(Or type /stop to end conversation)")
+    print()
+
+    lines = []
+    try:
+        while True:
+            try:
+                line = input()
+            except UnicodeDecodeError as e:
+                # Handle partial multi-byte character or encoding issues
+                print(f"\n⚠️ Unicode input error (retry line): {e}", file=sys.stderr)
+                continue
+
+            # Check for commands
+            if line.strip() == "/stop":
+                return None
+
+            lines.append(line)
+
+    except EOFError:
+        # Ctrl+D pressed
+        if not lines:
+            return None
+        pass
+
+    result = "\n".join(lines).strip()
+
+    if not result:
+        return None
+
+    return result
+
+
+def display_messages(messages: List[Dict]):
+    """Display messages to user."""
+    if not messages:
+        return
+
+    print()  # Blank line before messages
+
+    for msg in messages:
+        sender = msg.get("sender", "Unknown")
+        content = msg.get("content", "")
+
+        # Simple format: [Sender]: Message
+        print(f"[{sender}]: {content}")
+
+    print()  # Blank line after messages
+
+
+def get_next_participant(conversation_id: str, my_key: str):
+    """
+    Get next participant info for forwarding.
+
+    Args:
+        conversation_id: Group conversation ID
+        my_key: My participant key (e.g., "ruth")
+
+    Returns:
+        Next participant info dict, or None if not found
+    """
+    import yaml
+
+    # Load group config
+    group_config_path = UNIFIED_HOOK_DIR / "groups" / f"{conversation_id}.yaml"
+
+    with open(group_config_path) as f:
+        group_config = yaml.safe_load(f)
+
+    participants = group_config.get('participants', [])
+
+    # Find my position
+    try:
+        my_position = participants.index(my_key)
+    except ValueError:
+        return None
+
+    # Next participant (circular)
+    next_position = (my_position + 1) % len(participants)
+    next_key = participants[next_position]
+
+    # Load participant info
+    participants_config_path = UNIFIED_HOOK_DIR / "participants.yaml"
+
+    with open(participants_config_path) as f:
+        all_participants = yaml.safe_load(f)
+
+    next_info = all_participants.get('participants', {}).get(next_key)
+
+    if next_info:
+        next_info['key'] = next_key
+
+    return next_info
+
+
+def forward_to_next(conversation_id: str, my_key: str, my_name: str, my_content: str):
+    """
+    Forward to next participant via bash.
+
+    For Claude Code participants: triggers their hook з actual content
+    For terminal participants: they poll their session file
+
+    Args:
+        conversation_id: Group conversation ID
+        my_key: My participant key
+        my_name: My display name
+        my_content: The actual message content to forward
+    """
+    log("info", "Determining next participant", my_key=my_key, conversation=conversation_id)
+
+    next_info = get_next_participant(conversation_id, my_key)
+
+    if not next_info:
+        log("error", "Could not determine next participant")
+        return False
+
+    next_key = next_info['key']
+    next_name = next_info['name']
+    next_cli_type = next_info.get('cli_type', 'claude_code')
+
+    log("info", "Next participant identified", next_key=next_key, next_name=next_name, cli_type=next_cli_type)
+
+    # Terminal participants poll their session - no bash forward needed
+    if next_cli_type == 'terminal':
+        log("info", "Next participant is terminal - no bash forward needed", next_name=next_name)
+        print(f"Next participant ({next_name}) is terminal - they will poll session file")
+        return True
+
+    # Claude Code participants - forward via bash
+    next_home = next_info.get('home')
+    next_system_home = next_info.get('system_home')
+    next_session_id = next_info.get('session_id')
+
+    if not all([next_home, next_system_home, next_session_id]):
+        log("error", "Next participant missing required info", next_key=next_key)
+        return False
+
+    # Build forward message with ACTUAL content (not placeholder!)
+    # Uses same format as CC-to-CC forwards: "[SenderName]: content"
+    forward_message = format_message(my_name, my_content)
+
+    log("debug", "Building forward command",
+        next_session=next_session_id[:8],
+        content_length=len(my_content))
+
+    # Build bash command
+    cmd = build_claude_code_forward_command(
+        peer_home=next_home,
+        peer_system_home=next_system_home,
+        peer_session_id=next_session_id,
+        message=forward_message
+    )
+
+    log("info", "Executing forward command", next_name=next_name)
+
+    # Execute (non-blocking)
+    success = execute_forward_command(cmd, next_system_home)
+
+    if success:
+        log("info", "Forward successful", next_name=next_name)
+        print(f"✓ Forwarded to {next_name}")
+    else:
+        log("error", "Forward failed", next_name=next_name)
+
+    return success
+
+
+def main():
+    """Main CLI loop."""
+    parser = argparse.ArgumentParser(description="Group Chat Terminal Interface")
+    parser.add_argument('--conversation', required=True, help="Conversation ID")
+    args = parser.parse_args()
+
+    conversation_id = args.conversation
+
+    # Get terminal participant info
+    try:
+        my_info = get_terminal_participant_info()
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    my_key = my_info['key']
+    my_name = my_info['name']
+
+    # Setup shared consolidated log (same file as CC hooks use)
+    shared_log_file = UNIFIED_HOOK_DIR / "groups" / f"{conversation_id}_hook.log"
+    set_log_file(shared_log_file)
+
+    log("info", "CLI starting", participant=my_name, conversation=conversation_id)
+
+    # Initialize Terminal Platform
+    platform = TerminalPlatform(my_info, conversation_id)
+    outgoing_handler = OutgoingHandler(platform)
+
+    log("info", "Platform initialized", session_file=str(platform.session_file))
+
+    print(f"=== Group Chat: {conversation_id} ===")
+    print(f"Participant: {my_name}")
+    print()
+
+    # Track displayed messages
+    displayed_count = 0
+
+    # Polling settings
+    POLL_INTERVAL = 2  # seconds between checks
+
+    def check_and_display_new():
+        """Check for new messages and display them. Returns count of new messages."""
+        nonlocal displayed_count
+        all_messages = platform.get_messages_since_last(0)
+        new_messages = all_messages[displayed_count:]
+
+        if new_messages:
+            log("info", "New messages received", count=len(new_messages))
+            display_messages(new_messages)
+            displayed_count = len(all_messages)
+            return len(new_messages)
+        return 0
+
+    # Main loop
+    while True:
+        # Check for new incoming messages at start
+        check_and_display_new()
+
+        # Get user input
+        user_message = get_multiline_input(f"{my_name}> ")
+
+        if user_message is None:
+            log("info", "User requested exit")
+            print("\nEnding conversation. Goodbye!")
+            break
+
+        log("info", "User message received", length=len(user_message))
+
+        # Append to terminal session (egalitarian format)
+        from datetime import datetime
+        message_data = {
+            'sender': my_name,
+            'content': user_message,
+            'timestamp': datetime.now().isoformat()
+        }
+
+        platform.append_to_session([message_data])
+        displayed_count += 1  # Count our own message as displayed
+
+        log("info", "Message appended to terminal session")
+
+        # Extract and append to shared log
+        shared_log_message = outgoing_handler.process()
+
+        if shared_log_message:
+            log("info", "Outgoing message processed", am_uuid=shared_log_message.get('am_uuid', 'N/A')[:8])
+
+            # Append to shared log
+            group_log_path = UNIFIED_HOOK_DIR / "groups" / f"{conversation_id}_log.jsonl"
+            append_to_shared_log(group_log_path, shared_log_message)
+
+            log("info", "Message appended to shared log", log_path=str(group_log_path))
+
+            # Forward to next participant з actual content!
+            forward_to_next(conversation_id, my_key, my_name, user_message)
+
+            # Wait for circle to complete - poll for new messages
+            print("\n⏳ Waiting for circle to complete... (Ctrl+C to interrupt)")
+            print(f"   Polling every {POLL_INTERVAL}s for new messages")
+            print()
+
+            try:
+                while True:
+                    time.sleep(POLL_INTERVAL)
+                    new_count = check_and_display_new()
+                    if new_count > 0:
+                        # New messages arrived - break polling, return to input prompt
+                        break
+            except KeyboardInterrupt:
+                print("\n\n✋ Polling interrupted - showing prompt")
+                # Still check for any messages that arrived
+                check_and_display_new()
+        else:
+            log("error", "Could not process outgoing message")
+
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

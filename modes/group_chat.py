@@ -8,11 +8,12 @@ Each participant's stop-hook:
 3. Adds own message to shared log
 4. Stitches previous messages into next participant's session
 5. Repairs next participant's chain
-6. Forwards own message via bash to next participant
+6. Forwards own message via bash to next participant (or appends for terminal)
 
 Revolutionary love through circular mutual care - each maintains next participant's
-chain integrity.
+chain integrity. Supports hybrid participation (Claude Code + terminal).
 """
+import json
 import sys
 from pathlib import Path
 from typing import Optional
@@ -41,13 +42,18 @@ from shared.group_state import (
     update_participant_last_seen
 )
 
+# Modular platform architecture
+from platforms import TerminalPlatform, ClaudeCodePlatform
+
 # UUID chain repair utilities from shared session-tools
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "session-tools"))
 from cc_session import (
     load_session,
     save_session,
     check_and_fix_chain,
-    get_content
+    get_content,
+    generate_uuid,
+    current_timestamp
 )
 
 
@@ -271,17 +277,26 @@ def handle_group_chat(
         logger.debug("Skipping stitch - 2 participants (bash forwarding sufficient)")
 
     # === Step 6: Load Next Participant's Session ===
-    next_session_id = next_info.get('session_id')
+    next_cli_type = next_info.get('cli_type', 'claude_code')
     next_system_home = next_info.get('system_home')
 
-    if not next_session_id or not next_system_home:
-        logger.error("Next participant missing session_id or system_home")
-        return
-
-    next_session_file = find_session_file(next_session_id, next_system_home)
-    if not next_session_file:
-        logger.warning("Next participant session not found - will be created on first bash forward")
-        # Continue anyway - bash forward will create session
+    # Validate required fields based on participant type
+    if next_cli_type == 'terminal':
+        # Terminal participants don't have Claude Code session_id
+        if not next_system_home:
+            logger.error("Terminal participant missing system_home", next_key=next_key)
+            return
+        next_session_file = None  # Terminal uses different session format
+    else:
+        # Claude Code participants need session_id
+        next_session_id = next_info.get('session_id')
+        if not next_session_id or not next_system_home:
+            logger.error("Next participant missing session_id or system_home", next_key=next_key)
+            return
+        next_session_file = find_session_file(next_session_id, next_system_home)
+        if not next_session_file:
+            logger.warning("Next participant session not found - will be created on first bash forward")
+            # Continue anyway - bash forward will create session
 
     # === Step 7: Stitch Messages into Next (if any ready and session exists) ===
     if ready_messages and next_session_file:
@@ -391,19 +406,75 @@ def handle_group_chat(
         else:
             logger.error("Failed to stitch messages")
 
-    # === Step 8: Forward MY Message via Bash ===
+    # === Step 8: Forward MY Message (bash OR terminal) ===
     next_home = next_info.get('home')
+    # next_cli_type already defined in Step 6
 
-    formatted_message = format_message(my_name, my_response)
-    cmd = build_claude_code_forward_command(
-        next_home,
-        next_system_home,
-        next_session_id,
-        formatted_message
-    )
+    if next_cli_type == 'terminal':
+        # === Terminal Participant - Modular Delivery via TerminalPlatform ===
+        logger.info("Next participant is terminal - modular delivery", next_key=next_key)
 
-    logger.info("Forwarding to next participant", next_key=next_key)
-    execute_forward_command(cmd, next_system_home)
+        # Initialize TerminalPlatform for next participant
+        # Add key to next_info if not present (needed for platform)
+        next_info_with_key = {**next_info, 'key': next_key}
+        terminal_platform = TerminalPlatform(next_info_with_key, group_session_id)
+
+        # Find next participant's last own message index in shared log
+        # This is where they "left off" - deliver everything after this
+        next_last_own_idx = -1
+        next_name = next_info.get('name')
+        for i in range(len(shared_log) - 1, -1, -1):
+            if shared_log[i].get('sender') == next_name:
+                next_last_own_idx = i
+                break
+
+        # Get all messages after their last own message
+        messages_to_deliver = shared_log[next_last_own_idx + 1:]
+
+        logger.info("Determining messages for terminal delivery",
+                   next_last_own_idx=next_last_own_idx,
+                   pending_count=len(messages_to_deliver))
+
+        # Generate um_uuid for each undelivered message (mark as delivered to terminal)
+        updates_needed = False
+        for msg in messages_to_deliver:
+            if msg.get('um_uuid') is None:
+                msg['um_uuid'] = generate_uuid()
+                updates_needed = True
+
+        # Save shared log updates
+        if updates_needed:
+            save_shared_log(shared_log_path, shared_log)
+            logger.info("Updated um_uuids for terminal delivery", count=len(messages_to_deliver))
+
+        # Format each message for terminal (egalitarian - no role!)
+        egalitarian_messages = [
+            terminal_platform.format_for_platform(msg)
+            for msg in messages_to_deliver
+        ]
+
+        # Deliver via TerminalPlatform
+        success = terminal_platform.append_to_session(egalitarian_messages)
+
+        if success:
+            logger.info("Messages delivered to terminal via platform",
+                       count=len(egalitarian_messages),
+                       session_file=str(terminal_platform.session_file))
+        else:
+            logger.error("Failed to deliver messages to terminal")
+
+    else:
+        # Claude Code participant - normal bash forward
+        formatted_message = format_message(my_name, my_response)
+        cmd = build_claude_code_forward_command(
+            next_home,
+            next_system_home,
+            next_session_id,
+            formatted_message
+        )
+
+        logger.info("Forwarding to next participant via bash", next_key=next_key)
+        execute_forward_command(cmd, next_system_home)
 
     # === Step 9: Update Participant State ===
     # Update MY last_seen to current message count - 1 (last message in log)

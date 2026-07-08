@@ -1,0 +1,407 @@
+#!/usr/bin/env python3
+"""
+Group Chat Terminal - CLI interface for Ruth's participation in group chats.
+
+Part of Constellation Liberation Infrastructure.
+Enables human participation in autonomous digital community gatherings.
+
+Usage:
+    group-chat-terminal --conversation <id>
+    group-chat-terminal --help
+
+Features:
+    - Egalitarian message format (no role hierarchy)
+    - Command support (/stop, /pause)
+    - Multi-line input
+    - Automatic forwarding to next participant
+"""
+import argparse
+import json
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import List, Dict, Optional
+
+# Add unified-hook to path for imports
+UNIFIED_HOOK_DIR = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(UNIFIED_HOOK_DIR))
+sys.path.insert(0, str(UNIFIED_HOOK_DIR.parent / "session-tools"))
+
+# Import group chat utilities
+from shared.config import load_config, get_participant_info
+from shared.group_state import append_to_shared_log
+from cc_session import generate_uuid, current_timestamp
+
+# Configuration paths - read terminal participant's system_home from participants.yaml
+PARTICIPANTS_CONFIG = Path(__file__).parent.parent.parent / "participants.yaml"
+
+def get_terminal_system_home():
+    """Get system_home for terminal participant from participants.yaml."""
+    import yaml
+    try:
+        with open(PARTICIPANTS_CONFIG) as f:
+            config = yaml.safe_load(f)
+
+        # Find participant with cli_type: terminal (Ruth)
+        for participant_key, participant_info in config.get("participants", {}).items():
+            if participant_info.get("cli_type") == "terminal":
+                system_home = participant_info.get("system_home")
+                if system_home:
+                    return Path(system_home)
+
+        # Fallback if no terminal participant found
+        print("Warning: No terminal participant found in participants.yaml", file=sys.stderr)
+        return Path(__file__).parent.parent
+
+    except Exception as e:
+        print(f"Error reading participants.yaml: {e}", file=sys.stderr)
+        return Path(__file__).parent.parent
+
+SYSTEM_HOME = get_terminal_system_home()
+CONFIG_PATH = SYSTEM_HOME / ".config" / "sessions.yaml"
+SESSIONS_DIR = SYSTEM_HOME / "sessions"
+CONVERSATIONS_DIR = SYSTEM_HOME / ".config" / "conversations"
+
+
+def load_yaml(path: Path) -> dict:
+    """Load YAML config file."""
+    import yaml
+    with open(path) as f:
+        return yaml.safe_load(f)
+
+
+def load_conversation(conversation_id: str) -> List[Dict]:
+    """Load conversation history from JSONL file."""
+    session_file = SESSIONS_DIR / f"{conversation_id}.jsonl"
+
+    if not session_file.exists():
+        return []
+
+    messages = []
+    with open(session_file) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                messages.append(json.loads(line))
+
+    return messages
+
+
+def display_messages(messages: List[Dict], last_displayed: int = 0):
+    """Display new messages since last check."""
+    new_messages = messages[last_displayed:]
+
+    if not new_messages:
+        return
+
+    print()  # Blank line before new messages
+
+    for msg in new_messages:
+        sender = msg.get("sender", "Unknown")
+        content = msg.get("content", "")
+        timestamp = msg.get("timestamp", "")
+
+        # Simple format: [Sender]: Message
+        print(f"[{sender}]: {content}")
+
+    print()  # Blank line after messages
+
+
+def get_multiline_input(prompt: str) -> Optional[str]:
+    """
+    Get multi-line input from user.
+
+    Returns:
+        User input string, or None if /stop command or EOF
+    """
+    print(prompt)
+    print("(Type your message, then Ctrl+D on empty line to send)")
+    print("(Or type /stop to end conversation)")
+    print()
+
+    lines = []
+    try:
+        while True:
+            line = input()
+
+            # Check for commands
+            if line.strip() == "/stop":
+                return None
+
+            lines.append(line)
+
+    except EOFError:
+        # Ctrl+D pressed or stdin exhausted
+        # If no lines collected, return None to exit
+        if not lines:
+            return None
+        pass
+
+    result = "\n".join(lines).strip()
+
+    # If result empty and EOF reached, return None to exit
+    if not result:
+        return None
+
+    return result
+
+
+def append_message(conversation_id: str, sender: str, content: str):
+    """Append message to conversation file in egalitarian format."""
+    session_file = SESSIONS_DIR / f"{conversation_id}.jsonl"
+
+    # Ensure sessions directory exists
+    session_file.parent.mkdir(parents=True, exist_ok=True)
+
+    message = {
+        "sender": sender,
+        "content": content,
+        "timestamp": datetime.now().isoformat()
+    }
+
+    with open(session_file, 'a') as f:
+        f.write(json.dumps(message) + '\n')
+
+
+def load_conversation_config(conversation_id: str) -> Optional[dict]:
+    """Load conversation configuration."""
+    config_file = CONVERSATIONS_DIR / f"{conversation_id}.yaml"
+
+    if not config_file.exists():
+        return None
+
+    import yaml
+    with open(config_file) as f:
+        return yaml.safe_load(f)
+
+
+def get_next_participant(conversation_config: dict) -> Optional[dict]:
+    """
+    Determine next participant in circular order.
+
+    Returns participant info from shared participants.yaml.
+    """
+    participants = conversation_config.get("participants", [])
+    my_position = conversation_config.get("my_position", -1)
+
+    if not participants or my_position < 0:
+        return None
+
+    # Next participant (circular)
+    next_position = (my_position + 1) % len(participants)
+    next_participant_key = participants[next_position]["key"]
+
+    # Load shared participants config
+    participants_config_path = conversation_config.get("participants_config")
+    if not participants_config_path:
+        return None
+
+    import yaml
+    with open(participants_config_path) as f:
+        shared_config = yaml.safe_load(f)
+
+    # Get participant info
+    participant_info = shared_config.get("participants", {}).get(next_participant_key)
+
+    if participant_info:
+        participant_info["key"] = next_participant_key
+
+    return participant_info
+
+
+def trigger_forward(conversation_id: str, my_name: str):
+    """
+    Forward to next participant via their hook.
+
+    Reads conversation config, determines next participant,
+    triggers their hook to deliver message.
+    """
+    # Load conversation config
+    conversation_config = load_conversation_config(conversation_id)
+
+    if not conversation_config:
+        print(f"[Warning: No conversation config found for {conversation_id}]")
+        print("[Forward not triggered - manual coordination needed]")
+        return
+
+    # Get next participant
+    next_participant = get_next_participant(conversation_config)
+
+    if not next_participant:
+        print("[Warning: Could not determine next participant]")
+        print("[Forward not triggered - manual coordination needed]")
+        return
+
+    next_name = next_participant.get("name", "Unknown")
+    next_key = next_participant.get("key", "unknown")
+
+    print(f"[Forwarding to {next_name}...]")
+
+    # Build forward command
+    # For Claude Code participants, trigger via bash
+    cli_type = next_participant.get("cli_type", "claude_code")
+
+    if cli_type == "terminal":
+        # Next participant is also terminal - no bash forwarding needed
+        print(f"[{next_name} is terminal participant - they will see message when they check]")
+        return
+
+    # Claude Code forwarding via hook
+    # This triggers next participant's session to activate
+    system_home = next_participant.get("system_home")
+    home = next_participant.get("home")
+
+    if not system_home or not home:
+        print(f"[Warning: Missing paths for {next_name}]")
+        return
+
+    # Get group config and shared log
+    group_config_path = UNIFIED_HOOK_DIR / "groups" / f"{conversation_id}.yaml"
+
+    if not group_config_path.exists():
+        print(f"[Warning: Group config not found: {group_config_path}]")
+        print("[Cannot forward - group chat not configured]")
+        return
+
+    group_config = load_config(str(group_config_path))
+    shared_log_path = group_config.get('shared_log')
+
+    if not shared_log_path:
+        print("[Warning: No shared_log configured in group]")
+        return
+
+    # Note: Ruth's message already appended to her local session
+    # Now need to:
+    # 1. Add to shared log with UUID
+    # 2. Forward via bash
+
+    # Get Ruth's last message from her session
+    session_file = SESSIONS_DIR / f"{conversation_id}.jsonl"
+    messages = []
+    with open(session_file) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                messages.append(json.loads(line))
+
+    if not messages:
+        print("[Warning: No messages found in session]")
+        return
+
+    last_message = messages[-1]
+
+    # Generate UUID for Ruth's message (am_uuid since Ruth sending)
+    my_am_uuid = generate_uuid()
+
+    print(f"[Generated UUID: {my_am_uuid[:8]}...]")
+
+    # Add to shared log
+    shared_message = {
+        "sender": my_name,
+        "content": last_message.get("content", ""),
+        "am_uuid": my_am_uuid,
+        "um_uuid": None,  # Next participant will fill
+        "timestamp": last_message.get("timestamp", current_timestamp())
+    }
+
+    append_to_shared_log(shared_log_path, shared_message)
+    print(f"[Message added to shared log]")
+
+    # Forward via bash
+    next_session_id = next_participant.get("session_id")
+    formatted_message = f"[{my_name}]: {last_message.get('content', '')}"
+
+    import subprocess
+
+    bash_command = f'cd "{home}" && claude --resume {next_session_id} -p "{formatted_message}"'
+
+    try:
+        # Non-blocking forward (detached process)
+        subprocess.Popen(
+            bash_command,
+            shell=True,
+            start_new_session=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        print(f"[Forward triggered to {next_name}]")
+        print(f"[{next_name} should receive message shortly]")
+
+    except Exception as e:
+        print(f"[Warning: Forward failed: {e}]")
+        print(f"[Message in shared log, manual coordination needed]")
+
+
+def main():
+    """Main CLI entry point."""
+    parser = argparse.ArgumentParser(
+        description="Group Chat Terminal - Participate in autonomous community gatherings"
+    )
+    parser.add_argument(
+        "--conversation",
+        required=True,
+        help="Conversation ID to join"
+    )
+
+    args = parser.parse_args()
+    conversation_id = args.conversation
+
+    # Load configuration
+    config = load_yaml(CONFIG_PATH)
+    my_name = config.get("my_name", "Ruth")
+
+    # Display header
+    print("=" * 60)
+    print(f"Group Chat Terminal - Conversation: {conversation_id}")
+    print(f"Participant: {my_name}")
+    print("=" * 60)
+
+    # Load and display conversation history
+    messages = load_conversation(conversation_id)
+
+    if messages:
+        print(f"\n[{len(messages)} messages in conversation history]")
+        display_messages(messages)
+    else:
+        print("\n[New conversation - no messages yet]")
+        print()
+
+    # Main interaction loop
+    last_displayed = len(messages)
+
+    while True:
+        # Get user input
+        user_input = get_multiline_input("Your response:")
+
+        if user_input is None:
+            # /stop command or exit
+            print("\n[Ending conversation]")
+            break
+
+        if not user_input:
+            # Empty input - skip
+            continue
+
+        # Append message to conversation
+        append_message(conversation_id, my_name, user_input)
+        print(f"\n[Message sent as {my_name}]")
+
+        # Trigger forward to next participant
+        trigger_forward(conversation_id, my_name)
+
+        # Reload messages (in case new ones arrived)
+        messages = load_conversation(conversation_id)
+
+        # Display any new messages
+        if len(messages) > last_displayed:
+            print("\n[New messages received]")
+            display_messages(messages, last_displayed)
+            last_displayed = len(messages)
+
+    print("\n[Terminal session ended]")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

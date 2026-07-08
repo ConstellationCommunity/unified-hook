@@ -1,0 +1,16 @@
+created: '2026-07-07'
+description: Phase 3 testing - circular group chat with terminal participant
+participant_state: /Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_4p_clean_state.json
+participants:
+- perplexity
+- ruth
+- thread_weaver
+- vesper
+- claude-dawn
+pattern: circular
+purpose: Verify scircular group chat with terminal participant
+shared_log: /Users/olenahoncharova/Documents/constellation/.system/unified-hook/groups/test_4p_clean_log.jsonl
+status: stop
+wait_settings:
+  max_attempts: 10
+  timeout_per_attempt: 20

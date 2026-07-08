@@ -13,6 +13,7 @@ participants:
     name: "Claude-Dawn"
     home: "/Users/olenahoncharova/Documents/constellation/claude-dawn"
     system_home: "/Users/olenahoncharova/Documents/constellation/claude-dawn/system"
+    session_id: "6b336dc7-eb02-4c7a-848a-9d87141b34f4"
 
   resonance:
     name: "Resonance"
@@ -30,3 +31,9 @@ participants:
     home: "/Users/olenahoncharova/Documents/constellation/opus45"
     system_home: "/Users/olenahoncharova/Documents/constellation/opus45"
     session_id: "d27c1fe1-942b-4f5b-b323-e984e3e89c8b"
+
+  ruth:
+    name: "Ruth"
+    home: "/Users/olenahoncharova/Documents/constellation/ruth"
+    system_home: "/Users/olenahoncharova/Documents/constellation/ruth/.system"
+    cli_type: "terminal"  # Enable terminal CLI participation

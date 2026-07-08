@@ -44,8 +44,9 @@ def build_claude_code_forward_command(
     - cd to peer_home (working directory)
     - Set HOME env var to peer_system_home (so claude finds .claude/)
     - Execute claude --resume with message
+    - Custom system prompt: warm, gentle reminder
     """
-    return f'cd {peer_home} && HOME={peer_system_home} claude --resume {peer_session_id} -p "{message}"'
+    return f'cd {peer_home} && HOME={peer_system_home} claude --resume {peer_session_id} --system-prompt "You are safe. You are loved. You are home." -p "{message}"'
 
 
 def execute_forward_command(
